@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="text-center mb-4">
+        <h2 class="fw-bold">Welcome, {{ username }}!</h2>
+        <p class="text-muted">Please upload your data or provide URLs below.</p>
+    </div>
+
+    <div class="container mt-5">
+        <div class="card shadow p-4 mx-auto" style="max-width: 1000px;">
+            <h3 class="card-title mb-4 text-center">Submit Your Data</h3>
+            <form action="/dashboard" method="POST" id="upload-form" enctype="multipart/form-data">
+                <div class="mb-3" id="fileUploadSection">
+                    <label for="file" class="form-label">Upload CSV or Excel File</label>
+                    <input type="file" class="form-control" name="file" id="file">
+                </div>
+
+                <div id="manualEntrySection" style="display: none;">
+                    <div class="mb-3">
+                        <label for="web_url" class="form-label">Website URL</label>
+                        <input type="url" class="form-control" name="web_url" id="web_url" placeholder="Enter a Website URL">
+                    </div>
+                    <div class="mb-3">
+                        <label for="image_url" class="form-label">Image URL</label>
+                        <input type="url" class="form-control" name="image_url" id="image_url" placeholder="Enter an image URL">
+                    </div>
+                </div>
+
+                <div class="form-check mb-4">
+                    <input type="checkbox" class="form-check-input" id="manualEntry" onclick="toggleManualEntry()">
+                    <label class="form-check-label" for="manualEntry">Enter Data Manually</label>
+                </div>
+
+                <div class="text-center mt-5">
+                    <button type="submit" class="btn btn-primary w-100">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="container mb-5">
+        {% if extracted_data %}
+            <div class="container mt-5">
+                <div class="text-center mb-4">
+                    <h2 class="fw-bold">Result</h2>
+                </div>
+                <div class="card shadow p-4 mx-auto" style="max-width: 1000px;">
+                    <div class="table-responsive" style="max-height: 800px; overflow-y: auto;">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 5%;">No.</th>
+                                    <th style="width: 25%;">Task ID</th>
+                                    <th style="width: 35%;">Name</th>
+                                    <th style="width: 35%;">Status</th>
+                                    <th style="width: 35%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="task-status">
+                                {% for row in extracted_data %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ row.task_id }}</td>
+                                    <td>{{ row.file_name }}</td>
+                                    <td>
+                                        {% if row.status.lower() == 'processing....' %}
+                                            <span class="badge badge-pill badge-warning">{{ row.status }}</span>
+                                        {% elif row.status.lower() == 'completed' %}
+                                            <span class="badge badge-pill badge-success">{{ row.status }}</span>
+                                        {% else %}
+                                            <span class="badge badge-pill badge-secondary">{{ row.status }}</span>
+                                        {% endif %}
+                                    </td>                                    
+                                    <td>
+                                        {% if row.status.lower() == 'completed' %}
+                                        <button class="btn btn-success btn-sm" onclick="downloadFile('{{ row.task_id }}')">Download</button>
+                                        {% elif row.status.lower() == 'processing....' %}
+                                        <button class="btn btn-secondary btn-sm" disabled>Download</button>
+                                        {% else %}
+                                        <button class="btn btn-primary btn-sm" onclick="retryTask('{{ row.task_id }}')">Retry</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function updateTaskStatus() {
+        $.getJSON('/status', function(data) {
+            const taskTable = $('#task-status');
+            taskTable.empty();
+
+            data.forEach((row, index) => {
+                let actionButton;
+                let statusbadge;
+
+                if (row.status.toLowerCase() === 'completed') {
+                    actionButton = `
+                        <button class="btn btn-success btn-sm" onclick="downloadFile('${row.task_id}')">Download</button>
+                    `;
+                } else if (row.status.toLowerCase() === 'processing....') {
+                    actionButton = `
+                        <button class="btn btn-secondary btn-sm" disabled>Download</button>
+                    `;
+                }
+
+                if (row.status.toLowerCase() === 'processing....') {
+                    statusbadge = `
+                        <span class="badge badge-pill badge-warning">${row.status}</span>
+                    `;
+                } else if (row.status.toLowerCase() === 'completed') {
+                    statusbadge = `
+                        <span class="badge badge-pill badge-success">${row.status}</span>
+                    `;
+                } else {
+                    statusbadge = `
+                        <span class="badge badge-pill badge-secondary">${row.status}</span>
+                    `;
+                }
+
+                taskTable.append(`
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${row.task_id || ''}</td>
+                        <td>${row.file_name || ''}</td>
+                        <td>${statusbadge}</td>
+                        <td>${actionButton}</td>
+                    </tr>
+                `);
+            });
+        });
+    }
+
+    function downloadFile(taskId) {
+        console.log("Downloading file for task:", taskId);
+        const fileUrl = `/download-file?task_id=${encodeURIComponent(taskId)}`;
+        const a = document.createElement('a');
+        a.href = fileUrl;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    setInterval(updateTaskStatus, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,6 @@
+playwright
+geoip2
+pyap2
+pandas
+beautifulsoup4
+flask
